@@ -247,12 +247,14 @@ if selected_role == "👤 Citizen":
                 with st.spinner("AI checking evidence and translating..."):
                     payload = []
                     if uploaded_audio:
+                        # Determine MIME type dynamically from uploaded file
+                        audio_mime = uploaded_audio.type if getattr(uploaded_audio, "type", None) else "audio/mp4"
                         temp_p = "temp_user_audio.m4a"
                         with open(temp_p, "wb") as f:
                             f.write(uploaded_audio.getbuffer())
-                        payload.append(client.files.upload(file=temp_p))
+                        payload.append(client.files.upload(file=temp_p, config={"mime_type": audio_mime}))
                     elif use_sample and os.path.exists("sample_grievance.m4a"):
-                        payload.append(client.files.upload(file="sample_grievance.m4a"))
+                        payload.append(client.files.upload(file="sample_grievance.m4a", config={"mime_type": "audio/mp4"}))
 
                     if preview_img:
                         payload.append(preview_img)
