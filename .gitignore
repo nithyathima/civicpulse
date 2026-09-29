@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.env
+temp_user_audio.m4a
+.DS_Store
+.env
+.env
+.env
