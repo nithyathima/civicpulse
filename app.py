@@ -245,7 +245,7 @@ if selected_role == "👤 Citizen":
             if not uploaded_audio and os.path.exists("sample_grievance.m4a"):
                 use_sample = st.checkbox("Use local sample audio: sample_grievance.m4a (Tamil)", value=True)
 
-            user_text = st.text_area("Or type description:", value="மடிப்பாக்கம் சந்தை கிட்ட குப்பை கொட்டி வச்சிருக்காங்க.", height=75)
+            user_text = st.text_area("Or type description (leave blank if submitting audio):", value="", height=75)
             
             p1, p2 = st.columns(2)
             with p1:
@@ -313,16 +313,13 @@ if selected_role == "👤 Citizen":
                         "explanation": "concise 2-sentence summary explaining the issue, hazard risk, and suggested operational dispatch"
                     }
                     """
+                    citizen_statement = user_text.strip() if user_text.strip() else "(Refer to the attached audio recording for spoken citizen statement)"
+
                     prompt = f"""
-                    Citizen text: "{user_text}". Near bus: {near_bus}, Near water: {near_lake}
-                    Output JSON:
-                    {{
-                      "detected_language": string,
-                      "english_summary": string,
-                      "landmark": string,
-                      "is_valid_issue": bool,
-                      "timing_pattern": "Daytime Routine" | "Night Dump Window"
-                    }}
+                    Citizen spoken or typed grievance: "{citizen_statement}".
+                    Context: Near bus transit: {near_bus}, Near water drain/lake: {near_lake}.
+                    If audio is attached, prioritize the spoken grievance in the audio over typed text.
+                    Output JSON schema as instructed.
                     """
                     payload.append(prompt)
 
