@@ -7,6 +7,12 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
+
+# Allows running tests against custom endpoints or default lite model
+TEST_MODEL_NAME = os.getenv("GEMINI_TEST_MODEL", "gemini-3.5-flash-lite")
+
+
 
 load_dotenv()
 
@@ -119,7 +125,7 @@ Generate a formal CapEx Infrastructure Proposal in JSON matching this schema:
 """
 
 response = client.models.generate_content(
-    model="gemini-3.5-flash-lite",
+    model=TEST_MODEL_NAME,
     contents=prompt,
     config=types.GenerateContentConfig(
         system_instruction=system_instruction,

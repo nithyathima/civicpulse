@@ -22,12 +22,17 @@ except Exception:
     STORAGE_AVAILABLE = False
 import time
 
+
+
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")
+
 def generate_with_fallback(client, contents, system_instruction=None, json_mode=False):
     """
-    Tries the primary model first. If 503/high demand occurs,
-    automatically falls back to a secondary stable model.
+    Attempts primary model first. Automatically falls back to
+    gemini-3.5-flash-lite if demand spikes (503) or rate limits hit.
     """
-    models_to_try = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+    models_to_try = [MODEL_NAME, FALLBACK_MODEL]
     
     config_args = {}
     if system_instruction:
@@ -38,21 +43,19 @@ def generate_with_fallback(client, contents, system_instruction=None, json_mode=
     config = types.GenerateContentConfig(**config_args) if config_args else None
 
     last_error = None
-    for model_name in models_to_try:
+    for model in models_to_try:
         try:
             return client.models.generate_content(
-                model=model_name,
+                model=model,
                 contents=contents,
                 config=config
             )
         except Exception as e:
             last_error = e
-            # If 503 or overloaded, wait 1 second and try the next model
-            time.sleep(1)
+            time.sleep(0.5)
             continue
             
     raise last_error
-
 def upload_evidence_to_gcs(file_bytes, original_filename="evidence.bin", content_type="application/octet-stream"):
     """Uploads grievance file (image or audio) to GCS for persistent audit trail."""
     bucket_name = os.getenv("GCS_BUCKET_NAME")
@@ -171,7 +174,7 @@ if not API_KEY:
     st.error("Missing GEMINI_API_KEY. Please set it in your environment or .env file.")
 
 client = genai.Client(api_key=API_KEY)
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+
 
 def calculate_infrastructure_priority(report_density, recurrence_days, pop_exposure, env_risk_flag, service_gap_flag):
     """
@@ -294,6 +297,7 @@ if selected_role == "👤 Citizen":
                     sys_inst = """
                     You are CivicPulse AI assistant.
                     Translate any vernacular voice/text input to clear English.
+                    Identify the source spoken/written language (e.g., 'Tamil', 'Tanglish', 'Hindi', 'Kannada', 'English').
                     Verify whether the photo shows municipal solid waste or trash.
                     Extract landmark and timing (categorize strictly as 'Daytime Routine' or 'Night Dump').
                     Provide a concise 2-sentence explanation of the findings and recommended action.
@@ -301,6 +305,7 @@ if selected_role == "👤 Citizen":
                     Return strictly a valid JSON object matching this schema:
                     {
                         "verified_trash": true,
+                        "detected_language": "Name of source language (e.g., Tamil, Tanglish, Kannada, Hindi, English)",
                         "translation": "English translation of citizen statement",
                         "landmark": "extracted street/area landmark",
                         "timing_category": "Daytime Routine" or "Night Dump",
@@ -330,8 +335,46 @@ if selected_role == "👤 Citizen":
                         )
                         res = json.loads(resp.text)
                         st.success(f"Report Registered for {res.get('landmark', 'Identified Area')}")
+                        # --- BUILD TICKET PAYLOAD ---
+                        import datetime
+                        import uuid
+                        
+                        ticket_id = f"TKT-{uuid.uuid4().hex[:6].upper()}"
+                        timestamp_now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                        
+                        new_ticket = {
+                            "ticket_id": ticket_id,
+                            "landmark": res.get("landmark", "Identified Area"),
+                            "detected_language": res.get("detected_language") or "Tamil",
+                            "english_summary": res.get("english_summary") or res.get("translation", ""),
+                            "timing_pattern": res.get("timing_pattern") or res.get("timing_category", "Daytime Routine"),
+                            "waste_type": res.get("waste_type", "Mixed Solid Waste"),
+                            "severity_score": int(res.get("severity_score", 7)),
+                            "status": "PENDING_DISPATCH",
+                            "audio_url": audio_gcs_uri if "audio_gcs_uri" in locals() else "",
+                            "image_url": img_gcs_uri if "img_gcs_uri" in locals() else "",
+                            "timestamp": timestamp_now
+                        }
+
+                        # 1. IMMEDIATE UI UPDATE (Session State)
+                        if "grievances_list" not in st.session_state:
+                            st.session_state.grievances_list = []
+                        st.session_state.grievances_list.insert(0, new_ticket)
+
+                        # 2. PERSISTENCE TO BIGQUERY
+                        try:
+                            from google.cloud import bigquery
+                            bq_client = bigquery.Client(project=os.getenv("GCP_PROJECT_ID", "civicpulse-510111"))
+                            table_ref = f"{bq_client.project}.civicpulse_dataset.grievances"
+                            errors = bq_client.insert_rows_json(table_ref, [new_ticket])
+                            if not errors:
+                                st.info(f"Persistent record saved to BigQuery (Ticket: {ticket_id})")
+                            else:
+                                st.warning(f"BigQuery partial insert warning: {errors}")
+                        except Exception as bq_err:
+                            st.caption(f"BigQuery sync notice: {bq_err}")
                         st.markdown(f"**Translated:** {res.get('english_summary') or res.get('translation')}")
-                        st.markdown(f"**Detected Language:** `{res.get('detected_language', 'Auto-detected')}`")
+                        st.markdown(f"**Detected Language:** `{res.get('detected_language') or 'Undetermined'}`")
                         st.markdown(f"**Temporal Flag:** `{res.get('timing_pattern') or res.get('timing_category')}`")
                         
                         explanation_text = res.get('explanation')
@@ -379,7 +422,8 @@ elif selected_role == "🛡️ Ward Officer":
         st.subheader("Live Grievance Triage Queue")
         st.caption("Citizen voice notes, images, and text automatically categorized and translated via Gemini.")
         
-        queue_data = pd.DataFrame([
+        # Baseline historical reports
+        base_reports = [
             {
                 "Ticket ID": "TCK-1092",
                 "Locality": "Madipakkam Market",
@@ -404,7 +448,22 @@ elif selected_role == "🛡️ Ward Officer":
                 "Temporal Flag": "Daytime Routine",
                 "Status": "Assigned to Sweeper"
             }
-        ])
+        ]
+        
+        # Read newly submitted reports from st.session_state
+        incoming_tickets = []
+        for g in st.session_state.get("grievances_list", []):
+            incoming_tickets.append({
+                "Ticket ID": g.get("ticket_id"),
+                "Locality": g.get("landmark"),
+                "Language": g.get("detected_language"),
+                "Translated Summary": g.get("english_summary"),
+                "Temporal Flag": g.get("timing_pattern"),
+                "Status": "Action Required"
+            })
+            
+        # Combine live tickets on top of base historical reports
+        queue_data = pd.DataFrame(incoming_tickets + base_reports)
         st.dataframe(queue_data, use_container_width=True, hide_index=True)
 
     # ---------------------------------------------------------

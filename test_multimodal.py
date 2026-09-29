@@ -4,6 +4,11 @@ from PIL import Image
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
+import os
+from google.genai import types
+
+# Allows running tests against custom endpoints or default lite model
+TEST_MODEL_NAME = os.getenv("GEMINI_TEST_MODEL", "gemini-3.5-flash-lite")
 
 
 load_dotenv()
@@ -48,8 +53,10 @@ Analyze the image and citizen text. Respond ONLY with valid JSON:
 }}
 """
 
+
+
 response = client.models.generate_content(
-    model="gemini-3.5-flash-lite",
+    model=TEST_MODEL_NAME,
     contents=[uploaded_image, prompt],
     config=types.GenerateContentConfig(
         system_instruction=system_instruction,

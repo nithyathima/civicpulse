@@ -5,7 +5,11 @@ from google.genai import types
 
 from dotenv import load_dotenv
 from google import genai
+import os
+from google.genai import types
 
+# Allows running tests against custom endpoints or default lite model
+TEST_MODEL_NAME = os.getenv("GEMINI_TEST_MODEL", "gemini-3.5-flash-lite")
 load_dotenv()
 
 
@@ -57,7 +61,7 @@ Respond ONLY with a valid JSON object matching this schema:
 
 print("Processing audio with Gemini...")
 response = client.models.generate_content(
-    model="gemini-3.5-flash-lite",
+    model=TEST_MODEL_NAME,
     contents=[audio_file, prompt],
     config=types.GenerateContentConfig(
         system_instruction=system_instruction,
