@@ -22,57 +22,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-st.markdown("""
-<style>
-    /* Force main app background and primary text colors */
-    .stApp {
-        background-color: #0f172a !important; /* Clean modern slate dark */
-        color: #f8fafc !important;
-    }
 
-    /* Force all headings, paragraphs, and labels to bright crisp text */
-    h1, h2, h3, h4, h5, h6, p, span, label, div {
-        color: #f1f5f9 !important;
-    }
-
-    /* File uploader container & dropzone styling */
-    [data-testid="stFileUploader"] {
-        background-color: #1e293b !important;
-        border: 2px dashed #38bdf8 !important;
-        border-radius: 10px !important;
-        padding: 15px !important;
-    }
-
-    /* File uploader helper caption ("200MB per file • M4A, MP3, WAV") */
-    [data-testid="stFileUploader"] small,
-    [data-testid="stFileUploader"] span,
-    [data-testid="stFileUploader"] div,
-    [data-testid="stFileUploaderDropzoneInstructions"] {
-        color: #e2e8f0 !important;
-        font-weight: 500 !important;
-    }
-
-    /* Browse files button inside uploader */
-    [data-testid="stFileUploader"] button {
-        background-color: #2563eb !important;
-        color: #ffffff !important;
-        border-radius: 6px !important;
-        border: none !important;
-    }
-
-    /* Sidebar and Radio Buttons (Citizen, Ward Officer, Commissioner) */
-    [data-testid="stSidebar"] {
-        background-color: #1e293b !important;
-    }
-    
-    div[role="radiogroup"] label,
-    div[role="radiogroup"] span,
-    div[role="radiogroup"] p {
-        color: #f8fafc !important;
-        font-weight: 600 !important;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 st.markdown("""
 <style>
