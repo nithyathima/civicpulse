@@ -331,8 +331,17 @@ if selected_role == "👤 Citizen":
                             json_mode=True
                         )
                         res = json.loads(resp.text)
+                        
+                        # 1. Generate Ticket ID & Timestamp First
+                        import datetime
+                        import uuid
+                        
+                        ticket_id = f"TKT-{uuid.uuid4().hex[:6].upper()}"
+                        timestamp_now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
                         st.success(f"Report Registered for {res.get('landmark', 'Identified Area')}")
-                        # Grievance Reference Confirmation Card
+                        
+                        # 2. Display Citizen Grievance Reference Card
                         st.markdown(f"""
                         <div style="background: #ffffff; border: 1.5px solid #10b981; border-radius: 10px; padding: 14px 18px; margin: 12px 0;">
                             <span style="font-size: 0.72rem; font-weight: 700; color: #047857; text-transform: uppercase; letter-spacing: 0.05em;">Grievance Reference Number</span>
@@ -340,13 +349,8 @@ if selected_role == "👤 Citizen":
                             <span style="font-size: 0.8rem; color: #64748b;">Logged to municipal dispatch queue for operational crew verification.</span>
                         </div>
                         """, unsafe_allow_html=True)
-                        # --- BUILD TICKET PAYLOAD ---
-                        import datetime
-                        import uuid
-                        
-                        ticket_id = f"TKT-{uuid.uuid4().hex[:6].upper()}"
-                        timestamp_now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                        
+
+                        # 3. Build Ticket Payload
                         new_ticket = {
                             "ticket_id": ticket_id,
                             "landmark": res.get("landmark", "Identified Area"),
