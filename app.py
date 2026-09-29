@@ -241,9 +241,6 @@ if selected_role == "👤 Citizen":
                     st.caption(f"🎙️ Audio archived to GCS: `{audio_gcs_uri}`")
         
     # ... your existing code processing audio and calling Gemini ...
-            use_sample = False
-            if not uploaded_audio and os.path.exists("sample_grievance.m4a"):
-                use_sample = st.checkbox("Use local sample audio: sample_grievance.m4a (Tamil)", value=True)
 
             user_text = st.text_area("Or type description (leave blank if submitting audio):", value="", height=75)
             
@@ -275,9 +272,12 @@ if selected_role == "👤 Citizen":
         with col2:
             st.markdown("#### AI Verification & Immediate Routing")
             if submit_citizen:
+                if not uploaded_audio and not user_text.strip():
+                    st.warning("Please upload an audio note or enter a text grievance before submitting.")
+                    st.stop()
                 with st.spinner("AI checking evidence and translating..."):
                     payload = []
-                    if uploaded_audio:
+                    if uploaded_audio is not None:
                         # Determine MIME type dynamically from uploaded file
                         audio_mime = uploaded_audio.type if getattr(uploaded_audio, "type", None) else "audio/mp4"
                         temp_p = "temp_user_audio.m4a"
