@@ -14,12 +14,17 @@ from dotenv import load_dotenv
 from google import genai
 import os
 import uuid
-from google.cloud import storage
+try:
+    from google.cloud import storage
+    STORAGE_AVAILABLE = True
+except Exception:
+    storage = None
+    STORAGE_AVAILABLE = False
 
 def upload_evidence_to_gcs(file_bytes, original_filename="evidence.bin", content_type="application/octet-stream"):
     """Uploads grievance file (image or audio) to GCS for persistent audit trail."""
     bucket_name = os.getenv("GCS_BUCKET_NAME")
-    if not bucket_name:
+    if not bucket_name or not STORAGE_AVAILABLE:
         return None
     try:
         storage_client = storage.Client()
