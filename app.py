@@ -139,7 +139,7 @@ if not API_KEY:
     st.error("Missing GEMINI_API_KEY. Please set it in your environment or .env file.")
 
 client = genai.Client(api_key=API_KEY)
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
 def calculate_infrastructure_priority(report_density, recurrence_days, pop_exposure, env_risk_flag, service_gap_flag):
     """
@@ -261,8 +261,20 @@ if selected_role == "👤 Citizen":
 
                     sys_inst = """
                     You are CivicPulse AI assistant.
-                    Translate input to clear English. Verify if photo shows trash.
-                    Extract landmark and timing (Daytime Routine or Night Dump).
+                    Translate any vernacular voice/text input to clear English.
+                    Verify whether the photo shows municipal solid waste or trash.
+                    Extract landmark and timing (categorize strictly as 'Daytime Routine' or 'Night Dump').
+                    Provide a concise 2-sentence explanation of the findings and recommended action.
+
+                    Return strictly a valid JSON object matching this schema:
+                    {
+                        "verified_trash": true,
+                        "translation": "English translation of citizen statement",
+                        "landmark": "extracted street/area landmark",
+                        "timing_category": "Daytime Routine" or "Night Dump",
+                        "waste_type": "string describing waste materials seen",
+                        "explanation": "concise 2-sentence summary explaining the issue, hazard risk, and suggested operational dispatch"
+                    }
                     """
                     prompt = f"""
                     Citizen text: "{user_text}". Near bus: {near_bus}, Near water: {near_lake}
@@ -279,15 +291,22 @@ if selected_role == "👤 Citizen":
 
                     try:
                         resp = client.models.generate_content(
-                            model=MODEL_NAME,
+                            model="gemini-3.8-flash",
                             contents=payload,
-                            config=types.GenerateContentConfig(system_instruction=sys_inst, response_mime_type="application/json")
+                            config=types.GenerateContentConfig(
+                                system_instruction=sys_inst,
+                                response_mime_type="application/json"
+                            )
                         )
                         res = json.loads(resp.text)
                         st.success(f"Report Registered for {res.get('landmark', 'Identified Area')}")
-                        st.markdown(f"**Translated:** {res.get('english_summary')}")
-                        st.markdown(f"**Detected Language:** `{res.get('detected_language')}`")
-                        st.markdown(f"**Temporal Flag:** `{res.get('timing_pattern')}`")
+                        st.markdown(f"**Translated:** {res.get('english_summary') or res.get('translation')}")
+                        st.markdown(f"**Detected Language:** `{res.get('detected_language', 'Auto-detected')}`")
+                        st.markdown(f"**Temporal Flag:** `{res.get('timing_pattern') or res.get('timing_category')}`")
+                        
+                        explanation_text = res.get('explanation')
+                        if explanation_text:
+                            st.markdown(f"**AI Assessment:** {explanation_text}")
                     except Exception as e:
                         st.error(f"Error: {e}")
             else:
@@ -585,12 +604,12 @@ else:
                 """
                 try:
                     explanation = client.models.generate_content(
-                        model=MODEL_NAME,
+                        model="gemini-3.8-flash",
                         contents=prompt
                     )
                     st.markdown(explanation.text)
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    st.error(f"Error generating strategic assessment: {e}")
 
     # 4. Impact
     with c_tabs[3]:
