@@ -284,9 +284,7 @@ if selected_role == "👤 Citizen":
                         with open(temp_p, "wb") as f:
                             f.write(uploaded_audio.getbuffer())
                         payload.append(client.files.upload(file=temp_p, config={"mime_type": audio_mime}))
-                    elif use_sample and os.path.exists("sample_grievance.m4a"):
-                        payload.append(client.files.upload(file="sample_grievance.m4a", config={"mime_type": "audio/mp4"}))
-
+                   
                     if preview_img:
                         payload.append(preview_img)
 
