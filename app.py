@@ -20,6 +20,38 @@ try:
 except Exception:
     storage = None
     STORAGE_AVAILABLE = False
+import time
+
+def generate_with_fallback(client, contents, system_instruction=None, json_mode=False):
+    """
+    Tries the primary model first. If 503/high demand occurs,
+    automatically falls back to a secondary stable model.
+    """
+    models_to_try = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+    
+    config_args = {}
+    if system_instruction:
+        config_args["system_instruction"] = system_instruction
+    if json_mode:
+        config_args["response_mime_type"] = "application/json"
+        
+    config = types.GenerateContentConfig(**config_args) if config_args else None
+
+    last_error = None
+    for model_name in models_to_try:
+        try:
+            return client.models.generate_content(
+                model=model_name,
+                contents=contents,
+                config=config
+            )
+        except Exception as e:
+            last_error = e
+            # If 503 or overloaded, wait 1 second and try the next model
+            time.sleep(1)
+            continue
+            
+    raise last_error
 
 def upload_evidence_to_gcs(file_bytes, original_filename="evidence.bin", content_type="application/octet-stream"):
     """Uploads grievance file (image or audio) to GCS for persistent audit trail."""
@@ -290,13 +322,11 @@ if selected_role == "👤 Citizen":
                     payload.append(prompt)
 
                     try:
-                        resp = client.models.generate_content(
-                            model="gemini-3.8-flash",
+                        resp = generate_with_fallback(
+                            client=client,
                             contents=payload,
-                            config=types.GenerateContentConfig(
-                                system_instruction=sys_inst,
-                                response_mime_type="application/json"
-                            )
+                            system_instruction=sys_inst,
+                            json_mode=True
                         )
                         res = json.loads(resp.text)
                         st.success(f"Report Registered for {res.get('landmark', 'Identified Area')}")
@@ -603,8 +633,8 @@ else:
                 Keep it concise and professional.
                 """
                 try:
-                    explanation = client.models.generate_content(
-                        model="gemini-3.8-flash",
+                    explanation = generate_with_fallback(
+                        client=client,
                         contents=prompt
                     )
                     st.markdown(explanation.text)
