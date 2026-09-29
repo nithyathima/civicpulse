@@ -12,6 +12,26 @@ from google.genai import types
 from bigquery_client import fetch_spatial_clusters
 from dotenv import load_dotenv
 from google import genai
+import os
+import uuid
+from google.cloud import storage
+
+def upload_evidence_to_gcs(file_bytes, original_filename="evidence.bin", content_type="application/octet-stream"):
+    """Uploads grievance file (image or audio) to GCS for persistent audit trail."""
+    bucket_name = os.getenv("GCS_BUCKET_NAME")
+    if not bucket_name:
+        return None
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        folder = "audio" if "audio" in content_type else "images"
+        unique_name = f"evidence/{folder}/{uuid.uuid4().hex[:8]}_{original_filename}"
+        blob = bucket.blob(unique_name)
+        blob.upload_from_string(file_bytes, content_type=content_type)
+        return f"gs://{bucket_name}/{unique_name}"
+    except Exception as e:
+        print(f"GCS Upload Error (non-fatal): {e}")
+        return None
 
 # -------------------------------------------------------------
 # PAGE CONFIGURATION & STYLING
@@ -174,6 +194,13 @@ if selected_role == "👤 Citizen":
 
         with col1:
             uploaded_audio = st.file_uploader("Upload Audio Grievance (Tamil, Kannada, Hindi, English)", type=["m4a", "mp3", "wav"])
+            if uploaded_audio is not None:
+                # --- GCS Archive for Audio ---
+                audio_gcs_uri = upload_evidence_to_gcs(uploaded_audio.getvalue(), uploaded_audio.name, content_type="audio/m4a")
+                if audio_gcs_uri:
+                    st.caption(f"🎙️ Audio archived to GCS: `{audio_gcs_uri}`")
+        
+    # ... your existing code processing audio and calling Gemini ...
             use_sample = False
             if not uploaded_audio and os.path.exists("sample_grievance.m4a"):
                 use_sample = st.checkbox("Use local sample audio: sample_grievance.m4a (Tamil)", value=True)
@@ -187,6 +214,17 @@ if selected_role == "👤 Citizen":
                 near_lake = st.checkbox("Near Lake / Storm Drain", value=False)
 
             uploaded_img = st.file_uploader("Upload on-ground photo", type=["jpg", "jpeg", "png"])
+
+            if uploaded_img is not None:
+                # --- GCS Archive for Image ---
+                img_gcs_uri = upload_evidence_to_gcs(uploaded_img.getvalue(), uploaded_img.name, content_type="image/jpeg")
+                if img_gcs_uri:
+                    st.caption(f"📁 Image archived to GCS: `{img_gcs_uri}`")
+    
+    # ... your existing code displaying image and calling Gemini ...
+
+                # (Your existing code continues here: displaying image, calling Gemini, etc.)
+                # st.image(uploaded_file, caption="Uploaded Image")
             if not uploaded_img and os.path.exists("sample_trash.jpg"):
                 preview_img = Image.open("sample_trash.jpg")
                 st.image(preview_img, caption="Default Verification Photo", width=220)
