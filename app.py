@@ -265,14 +265,10 @@ if selected_role == "👤 Citizen":
 
                 # (Your existing code continues here: displaying image, calling Gemini, etc.)
                 # st.image(uploaded_file, caption="Uploaded Image")
-            if not uploaded_img and os.path.exists("sample_trash.jpg"):
-                preview_img = Image.open("sample_trash.jpg")
-                st.image(preview_img, caption="Default Verification Photo", width=220)
-            elif uploaded_img:
+            preview_img = None
+            if uploaded_img is not None:
                 preview_img = Image.open(uploaded_img)
                 st.image(preview_img, caption="Attached photo", width=220)
-            else:
-                preview_img = None
 
             submit_citizen = st.button("Submit Report", type="primary", use_container_width=True)
 
@@ -298,19 +294,23 @@ if selected_role == "👤 Citizen":
                     You are CivicPulse AI assistant.
                     Translate any vernacular voice/text input to clear English.
                     Identify the source spoken/written language (e.g., 'Tamil', 'Tanglish', 'Hindi', 'Kannada', 'English').
-                    Verify whether the photo shows municipal solid waste or trash.
+
+                    Photo & Waste Verification:
+                    - If a photo is attached, visually verify whether it shows municipal solid waste and describe the visible materials in waste_type.
+                    - If NO photo is attached, assess the severity and hazard solely based on the citizen's spoken audio or text grievance, and set waste_type to 'Unverified (Audio/Text Only)'.
+
                     Extract landmark and timing (categorize strictly as 'Daytime Routine' or 'Night Dump').
-                    Provide a concise 2-sentence explanation of the findings and recommended action.
+                    Provide a concise 2-sentence explanation of the findings and recommended operational action.
 
                     Return strictly a valid JSON object matching this schema:
                     {
                         "verified_trash": true,
-                        "detected_language": "Name of source language (e.g., Tamil, Tanglish, Kannada, Hindi, English)",
+                        "detected_language": "Detected language name",
                         "translation": "English translation of citizen statement",
                         "landmark": "extracted street/area landmark",
-                        "timing_category": "Daytime Routine" or "Night Dump",
-                        "waste_type": "string describing waste materials seen",
-                        "explanation": "concise 2-sentence summary explaining the issue, hazard risk, and suggested operational dispatch"
+                        "timing_category": "Daytime Routine or Night Dump",
+                        "waste_type": "string describing waste materials mentioned or seen",
+                        "explanation": "concise 2-sentence summary explaining the issue based on available media and suggested operational dispatch"
                     }
                     """
                     citizen_statement = user_text.strip() if user_text.strip() else "(Refer to the attached audio recording for spoken citizen statement)"
@@ -475,17 +475,17 @@ elif selected_role == "🛡️ Ward Officer":
         queue_data = pd.DataFrame(incoming_tickets + base_reports)
         st.dataframe(queue_data, use_container_width=True, hide_index=True)
 
-    # ---------------------------------------------------------
+   # ---------------------------------------------------------
     # TAB 2: WASTE HOTSPOTS (DBSCAN GEOSPATIAL CLUSTERING)
     # ---------------------------------------------------------
     with o_tabs[1]:
         st.subheader("Spatial Hotspot Clustering")
         st.caption("DBSCAN clusters isolating recurring blackspots from one-off transient litter.")
         
-        # Base interactive map (OpenStreetMap tiles, no API key needed)
-        blr_map = folium.Map(location=[12.93, 77.63], zoom_start=12, tiles="OpenStreetMap")
+        # Base interactive map centered on South Bengaluru
+        blr_map = folium.Map(location=[12.90, 77.64], zoom_start=11, tiles="OpenStreetMap")
         
-        # Red: High-density chronic commercial cluster
+        # Static baseline clusters
         folium.CircleMarker(
             location=[12.9226, 77.6174],
             radius=9,
@@ -495,7 +495,6 @@ elif selected_role == "🛡️ Ward Officer":
             tooltip="Cluster #1: Madiwala Market (45 recurring incidents)"
         ).add_to(blr_map)
         
-        # Purple: 100m Waterbody Buffer / Canal Corridor
         folium.CircleMarker(
             location=[12.9260, 77.6762],
             radius=9,
@@ -505,7 +504,6 @@ elif selected_role == "🛡️ Ward Officer":
             tooltip="Cluster #2: Bellandur Canal Buffer (48 recurring incidents - Eco Risk)"
         ).add_to(blr_map)
 
-        # Blue: Low-density transient reports
         folium.CircleMarker(
             location=[12.9352, 77.6245],
             radius=4,
@@ -514,14 +512,44 @@ elif selected_role == "🛡️ Ward Officer":
             fill_opacity=0.6,
             tooltip="Transient Litter: Koramangala 4th Block"
         ).add_to(blr_map)
+
+        # Approximate coordinates for live demo landmarks
+        LANDMARK_COORDS = {
+            "electronic city": [12.8452, 77.6602],
+            "siemens": [12.8440, 77.6640],
+            "madipakkam": [12.9647, 80.1961],
+            "madiwala": [12.9226, 77.6174],
+            "koramangala": [12.9352, 77.6245],
+            "bellandur": [12.9260, 77.6762],
+            "hsr": [12.9121, 77.6446]
+        }
+
+        # Plot live grievances from st.session_state
+        for ticket in st.session_state.get("grievances_list", []):
+            lm = str(ticket.get("landmark", "")).lower()
+            coords = [12.8452, 77.6602]  # Default to Electronic City if not matched
+            for key, pt in LANDMARK_COORDS.items():
+                if key in lm:
+                    coords = pt
+                    break
+
+            folium.CircleMarker(
+                location=coords,
+                radius=8,
+                color="#f97316",  # Distinct orange for live incoming AI reports
+                fill=True,
+                fill_opacity=0.9,
+                tooltip=f"🚨 Live Report: {ticket.get('landmark')} ({ticket.get('ticket_id')})"
+            ).add_to(blr_map)
         
         st_folium(blr_map, width=1000, height=400)
 
         # Legend
-        l1, l2, l3 = st.columns(3)
-        l1.markdown("🔴 **Chronic Deficit ($\ge$ 15 incidents):** Requires infrastructure/timing fix.")
-        l2.markdown("🟣 **Waterbody Buffer (100m):** High ecological hazard; priority canal fencing.")
-        l3.markdown("🔵 **Isolated Transient Litter:** Handled by standard street sweepers.")
+        l1, l2, l3, l4 = st.columns(4)
+        l1.markdown("🔴 **Chronic Deficit ($\ge$ 15 incidents):** Requires infrastructure fix.")
+        l2.markdown("🟣 **Waterbody Buffer (100m):** Canal hazard corridor.")
+        l3.markdown("🔵 **Isolated Litter:** Street sweeper dispatch.")
+        l4.markdown("🟠 **Live Ingested Report:** Active AI grievance.")
 
    # ---------------------------------------------------------
     # TAB 3: COLLECTION DEMAND MISMATCH (COMPACT & SLEEK)
