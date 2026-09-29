@@ -332,6 +332,14 @@ if selected_role == "👤 Citizen":
                         )
                         res = json.loads(resp.text)
                         st.success(f"Report Registered for {res.get('landmark', 'Identified Area')}")
+                        # Grievance Reference Confirmation Card
+                        st.markdown(f"""
+                        <div style="background: #ffffff; border: 1.5px solid #10b981; border-radius: 10px; padding: 14px 18px; margin: 12px 0;">
+                            <span style="font-size: 0.72rem; font-weight: 700; color: #047857; text-transform: uppercase; letter-spacing: 0.05em;">Grievance Reference Number</span>
+                            <div style="font-size: 1.5rem; font-weight: 800; color: #0f172a; margin: 2px 0;">{ticket_id}</div>
+                            <span style="font-size: 0.8rem; color: #64748b;">Logged to municipal dispatch queue for operational crew verification.</span>
+                        </div>
+                        """, unsafe_allow_html=True)
                         # --- BUILD TICKET PAYLOAD ---
                         import datetime
                         import uuid
